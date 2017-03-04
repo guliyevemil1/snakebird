@@ -11,10 +11,6 @@ type point struct {
 
 type pointSet map[point]bool
 
-func (this *point) eq(that *point) bool {
-	return (this == that) || (this.x == that.x && this.y == that.y)
-}
-
 type Snakebird []point
 
 type GameState struct {
