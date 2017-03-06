@@ -1,4 +1,4 @@
-module Level1 where
+module Level2 where
 
 import qualified Data.Set as S
 import Snakebird

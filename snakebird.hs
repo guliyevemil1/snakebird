@@ -60,9 +60,10 @@ bottom = side down
 
 isEmpty :: Point -> Snakebird Bool
 isEmpty p@(_, y) = do
+    isFruit <- S.member p <$> use fruits
     isObstacle <- S.member p <$> use obstacles
     isPartOfSb <- (p `elem`) <$> use snakebird
-    return $ and [y >= 0, not isObstacle, not isPartOfSb]
+    return $ and [y >= 0, not isFruit, not isObstacle, not isPartOfSb]
 
 allEmpty :: [Point] -> Snakebird Bool
 allEmpty ps = and <$> mapM isEmpty ps 
@@ -75,12 +76,12 @@ checkForSpikes = do
 
 moveSnakebird :: Direction -> Snakebird ()
 moveSnakebird d = do
+    guardM checkForSpikes
     canMove <- use snakebird >>= allEmpty . side d
     if not canMove
     then return ()
     else do
         snakebird %= map (+d)
-        guardM checkForSpikes
         moveSnakebird d
 
 fall = moveSnakebird down
@@ -92,10 +93,16 @@ isSolved = do
     g <- use goal
     return (fruitCount == 0 && sbh == g)
 
+canMoveTo :: Point -> Snakebird Bool
+canMoveTo p@(_, y) = do
+    isObstacle <- S.member p <$> use obstacles
+    isPartOfSb <- (p `elem`) <$> use snakebird
+    return $ and [y >= 0, not isObstacle, not isPartOfSb]
+
 moveHead :: Direction -> Snakebird Bool
 moveHead dir = do
     p <- ((+dir) . head) <$> use snakebird
-    guardM $ isEmpty p
+    guardM $ canMoveTo p
     gs <- get
     previous .= Just (dir, gs)
     hasFruit <- S.member p <$> use fruits
