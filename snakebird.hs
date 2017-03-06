@@ -30,13 +30,23 @@ instance Num Point where
 
 type PointSet = S.Set Point
 
+data Action = Move Direction | Switch
+
+instance Show Action where
+    show (Move (1, 0)) = "right"
+    show (Move (-1, 0)) = "left"
+    show (Move (0, 1)) = "up"
+    show (Move (0, -1)) = "down"
+    show Switch = "switch"
+
 data GameState = GameState {
-        _snakebird :: [Point],
+        _active :: Int,
+        _snakebirds :: [[Point]],
         _obstacles :: PointSet,
         _spikes :: PointSet,
         _fruits :: PointSet,
         _goal :: Point,
-        _previous :: Maybe (Direction, GameState)
+        _previous :: Maybe (Action, GameState)
     } deriving (Show)
 
 instance Eq GameState where
@@ -44,12 +54,17 @@ instance Eq GameState where
 
 instance Ord GameState where
     compare a b = mconcat $ map (\f -> f a b) [
-        compare `on` _snakebird,
+        compare `on` _active,
+        compare `on` _snakebirds,
         compare `on` _fruits]
 
 makeLenses ''GameState
 
-snakebirdHead = head <$> use snakebird
+currentSnakebird = do
+    i <- use active
+    use $ snakebirds . ix i
+
+snakebirdHead = head <$> currentSnakebird
 
 type Snakebird a = StateT GameState [] a
 
@@ -62,26 +77,24 @@ isEmpty :: Point -> Snakebird Bool
 isEmpty p@(_, y) = do
     isFruit <- S.member p <$> use fruits
     isObstacle <- S.member p <$> use obstacles
-    isPartOfSb <- (p `elem`) <$> use snakebird
-    return $ and [y >= 0, not isFruit, not isObstacle, not isPartOfSb]
+    return $ and [y >= 0, not isFruit, not isObstacle]
 
 allEmpty :: [Point] -> Snakebird Bool
 allEmpty ps = and <$> mapM isEmpty ps 
 
 checkForSpikes :: Snakebird Bool
 checkForSpikes = do
-    sb <- use snakebird
+    sb <- currentSnakebird
     sp <- use spikes
     return $ null $ filter (`S.member` sp) sb
 
 moveSnakebird :: Direction -> Snakebird ()
 moveSnakebird d = do
     guardM checkForSpikes
-    canMove <- use snakebird >>= allEmpty . side d
-    if not canMove
-    then return ()
-    else do
-        snakebird %= map (+d)
+    canMove <- currentSnakebird >>= allEmpty . side d
+    when canMove $ do
+        i <- use active
+        snakebirds . ix i %= map (+d)
         moveSnakebird d
 
 fall = moveSnakebird down
@@ -93,28 +106,33 @@ isSolved = do
     g <- use goal
     return (fruitCount == 0 && sbh == g)
 
-canMoveTo :: Point -> Snakebird Bool
-canMoveTo p@(_, y) = do
+canMoveHeadTo :: Point -> Snakebird Bool
+canMoveHeadTo p@(_, y) = do
     isObstacle <- S.member p <$> use obstacles
-    isPartOfSb <- (p `elem`) <$> use snakebird
+    isPartOfSb <- (p `elem`) <$> currentSnakebird
     return $ and [y >= 0, not isObstacle, not isPartOfSb]
 
-moveHead :: Direction -> Snakebird Bool
-moveHead dir = do
-    p <- ((+dir) . head) <$> use snakebird
-    guardM $ canMoveTo p
+doAction :: Action -> Snakebird Bool
+doAction (Move dir) = do
+    p <- ((+dir) . head) <$> currentSnakebird
+    guardM $ canMoveHeadTo p
     gs <- get
-    previous .= Just (dir, gs)
+    previous .= Just (Move dir, gs)
     hasFruit <- S.member p <$> use fruits
     fruits %= if hasFruit then S.delete p else id
-    snakebird %= (if hasFruit then id else init) . (p:)
+    i <- use active
+    snakebirds . ix i %= (if hasFruit then id else init) . (p:)
     fall
     isSolved
+doAction Switch = do
+    sbCount <- length <$> use snakebirds
+    active %= (`rem` sbCount) . succ
+    return False
+
+actions = Switch : map Move [right, up, left, down]
 
 move :: Snakebird Bool
-move = do
-    dir <- lift [right, up, left, down]
-    moveHead dir
+move = lift actions >>= doAction
 
 solve'' :: S.Set GameState -> [GameState] -> [(Bool, GameState)]
 solve'' s gs = gs >>= filter (not . (`S.member` s) . snd) . runStateT move
@@ -131,17 +149,11 @@ solve' s gs = case filter fst res of
 solve :: GameState -> GameState
 solve gs = solve' S.empty [gs]
 
-toList' :: GameState -> [Direction]
+toList' :: GameState -> [Action]
 toList' gs = case _previous gs of
     Nothing -> []
     Just (d, gs') -> d : toList' gs'
 
 toList = reverse . toList'
 
-showSolution = map showDir . toList
-    where
-        showDir (1, 0) = "right"
-        showDir (-1, 0) = "left"
-        showDir (0, 1) = "up"
-        showDir (0, -1) = "down"
-        showDir x = show x
+showSolution = map show . toList
