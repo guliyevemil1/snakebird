@@ -133,8 +133,8 @@ toList = reverse . toList'
 
 showSolution = map showDir . toList
     where
-        showDir (1, 0) = "left"
-        showDir (-1, 0) = "right"
+        showDir (1, 0) = "right"
+        showDir (-1, 0) = "left"
         showDir (0, 1) = "up"
         showDir (0, -1) = "down"
         showDir x = show x
