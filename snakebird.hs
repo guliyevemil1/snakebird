@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, FlexibleInstances #-}
 
 module Snakebird where
 
@@ -12,18 +12,18 @@ import Control.Lens
 import Utils
 
 type MyInt = Int
-data Point = Point MyInt MyInt deriving (Show, Eq, Ord)
+type Point = (MyInt, MyInt)
 type Direction = Point
 
-down = Point 0 (-1)
-up = Point 0 1
-left = Point (-1) 0
-right = Point 1 0
+down = (0, -1)
+up = (0, 1)
+left = (-1, 0)
+right = (1, 0)
 
 instance Num Point where
-    (Point x y) + (Point x' y') = Point (x+x') (y+y')
-    fromInteger n = Point (fromIntegral n) 0
-    negate (Point x y) = Point (-x) (-y)
+    (x, y) + (x', y') = (x+x', y+y')
+    fromInteger n = (fromIntegral n, 0)
+    negate (x, y) = (-x, -y)
     signum = undefined
     _ * _ = undefined
     abs = undefined
@@ -36,7 +36,7 @@ data GameState = GameState {
         _spikes :: PointSet,
         _fruits :: PointSet,
         _goal :: Point,
-        _previous :: Maybe GameState
+        _previous :: Maybe (Direction, GameState)
     } deriving (Show)
 
 instance Eq GameState where
@@ -59,7 +59,7 @@ side d ps = filter (not . (`elem` ps)) $ map (+d) ps
 bottom = side down
 
 isEmpty :: Point -> Snakebird Bool
-isEmpty p@(Point _ y) = do
+isEmpty p@(_, y) = do
     isObstacle <- S.member p <$> use obstacles
     isPartOfSb <- (p `elem`) <$> use snakebird
     return $ and [y >= 0, not isObstacle, not isPartOfSb]
@@ -97,7 +97,7 @@ moveHead dir = do
     p <- ((+dir) . head) <$> use snakebird
     guardM $ isEmpty p
     gs <- get
-    previous .= Just gs
+    previous .= Just (dir, gs)
     hasFruit <- S.member p <$> use fruits
     fruits %= if hasFruit then S.delete p else id
     snakebird %= (if hasFruit then id else init) . (p:)
@@ -124,8 +124,17 @@ solve' s gs = case filter fst res of
 solve :: GameState -> GameState
 solve gs = solve' S.empty [gs]
 
-main = do
-    print $ gs
-    print $ solve gs
+toList' :: GameState -> [Direction]
+toList' gs = case _previous gs of
+    Nothing -> []
+    Just (d, gs') -> d : toList' gs'
+
+toList = reverse . toList'
+
+showSolution = map showDir . toList
     where
-        gs = GameState [Point 0 0, Point (-1) 0, Point (-2) 0] S.empty S.empty (S.singleton (Point 1 0)) (Point 1 2) Nothing
+        showDir (1, 0) = "left"
+        showDir (-1, 0) = "right"
+        showDir (0, 1) = "up"
+        showDir (0, -1) = "down"
+        showDir x = show x
