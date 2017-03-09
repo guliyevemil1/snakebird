@@ -146,9 +146,6 @@ solve' s gs = case filter fst res of
         gs' = map snd res
         s' = foldr S.insert s gs'
 
-solve :: GameState -> GameState
-solve gs = solve' S.empty [gs]
-
 toList' :: GameState -> [Action]
 toList' gs = case _previous gs of
     Nothing -> []
@@ -156,4 +153,5 @@ toList' gs = case _previous gs of
 
 toList = reverse . toList'
 
-showSolution = map show . toList
+solve :: GameState -> [Action]
+solve gs = toList (solve' S.empty [gs])

@@ -10,5 +10,3 @@ g = (3,7)
 o = S.fromList $ [ (-1,2), (0,2), (1,2), (2,3), (3,3), (4,3), (5,3), (6,3) ]
 gs = GameState 0 sb o sp f g Nothing
 solution = solve gs
-
-main = print $ showSolution solution

@@ -9,5 +9,3 @@ o = S.fromList $ [ (1,3), (0,3), (-1,3), (-2,3), (-3,3), (-4,2), (-5,2), (-6,3),
 g = (0,7)
 gs = GameState 0 sb o S.empty f g Nothing
 solution = solve gs
-
-main = print $ showSolution solution
